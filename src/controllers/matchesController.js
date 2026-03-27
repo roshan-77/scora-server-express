@@ -317,7 +317,7 @@ const matchesController = {
   scoreAMatch: async (req, res) => {
     try {
       const matchId = req.params.id;
-      const { score } = req.body;
+      const { team } = req.body; // home away
 
       const foundMatch = await matches.findOne({ _id: new ObjectId(matchId) });
 
@@ -325,13 +325,53 @@ const matchesController = {
         return res.status(404).send("Match not found");
       }
 
-      const result = await matches.updateOne(
-        { _id: new ObjectId(matchId) },
-        { $set: { score } },
+      if (foundMatch.status != "live") {
+        return res.status(400).send("Match must be live to score");
+      }
+
+      if (!["home", "away"].includes(team)) {
+        return res.status(400).send("Invalid team");
+      }
+
+      //First or second half
+      let halfIndex;
+      if (!foundMatch.periods[0].endTime) {
+        halfIndex = 0;
+      } else {
+        halfIndex = 1;
+      }
+
+      const currentPeriod = foundMatch.periods[halfIndex];
+      const goalTime = Math.floor(
+        (new Date() - foundMatch.periods[0].startTime) / 60000,
       );
-      res.send("Match successfully scored");
+
+      if (team === "home") {
+        foundMatch.score.home += 1;
+      } else if (team === "away") {
+        foundMatch.score.away += 1;
+      }
+
+      foundMatch.events.push({
+        type: "GOAL",
+        half: currentPeriod.name,
+        time: goalTime,
+        timestamp: new Date(),
+      });
+
+      await matches.updateOne(
+        { _id: new ObjectId(matchId) },
+        {
+          $set: {
+            score: foundMatch.score,
+            events: foundMatch.events,
+          },
+        },
+      );
+
+      res.status(200).send("Match successfully scored");
     } catch (error) {
-      res.status(500).send("Server error");
+      res.status(500).json({ message: error.message });
     }
   },
 };
