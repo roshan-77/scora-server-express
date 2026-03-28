@@ -52,13 +52,32 @@ const authController = {
         password: hashedPassword,
       });
 
-      //Enter user into user database
+      function calculateAge(dob) {
+        const birthDate = new Date(dob);
+        const today = new Date();
+
+        let age = today.getFullYear() - birthDate.getFullYear();
+
+        // Check if birthday has happened yet this year
+        const monthDiff = today.getMonth() - birthDate.getMonth();
+        const dayDiff = today.getDate() - birthDate.getDate();
+
+        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+          age--; // birthday hasn't occurred yet this year
+        }
+
+        return age;
+      }
+
+      // Usage
+      const age = calculateAge(value.dateOfBirth);
+
+      //Enter user into player database as well
       await players.insertOne({
         userId: result.insertedId,
-        firstName: value.firstName,
-        lastName: value.lastName,
         sport: value.sport,
-        stats: {},
+        age: age,
+        createdAt: new Date(),
       });
 
       res.status(201).send("User registered");
