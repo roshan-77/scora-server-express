@@ -1,4 +1,5 @@
 import { matches } from "../config/db.js";
+import { players } from "../config/db.js";
 import sportHandlers from "../services/matches/sportHandlers.js";
 import normalizeMatch from "../utils/normalizeMatch.js";
 import { ObjectId } from "mongodb";
@@ -317,12 +318,48 @@ const matchesController = {
   scoreAMatch: async (req, res) => {
     try {
       const matchId = req.params.id;
-      const { team } = req.body; // home away
+      const { team, goalScorerId, assistProviderId } = req.body || {}; // home away
+
+      const error = [];
+      if (!team) {
+        error.push({ field: team, message: "Team is required" });
+      }
+      if (!goalScorerId) {
+        error.push({ field: goalScorerId, message: "Goal scorer is required" });
+      }
+      if (assistProviderId && typeof assistProvider != "string") {
+        error.push({
+          field: assistProviderId,
+          message: "Assist provider should be valid Id",
+        });
+      }
+
+      if (error.length > 0) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          error,
+        });
+      }
 
       const foundMatch = await matches.findOne({ _id: new ObjectId(matchId) });
-
       if (!foundMatch) {
-        return res.status(404).send("Match not found");
+        return res.status(404).send("Invalid Match Id");
+      }
+
+      const goalScorer = await players.findOne({
+        _id: new ObjectId(goalScorerId),
+      });
+      if (!goalScorer) {
+        return res.status(400).send("Goal scorer not found");
+      }
+      let assistProvider;
+      if (assistProviderId) {
+        assistProvider = await players.findOne({
+          _id: new ObjectId(assistProviderId),
+        });
+        if (!assistProvider) {
+          return res.status(400).json({ message: "Assist provider not found" });
+        }
       }
 
       if (foundMatch.status != "live") {
@@ -357,6 +394,9 @@ const matchesController = {
         half: currentPeriod.name,
         time: goalTime,
         timestamp: new Date(),
+        goalScorer: goalScorer.firstName[0] + ". " + goalScorer.lastName,
+        assistProvider:
+          assistProvider.firstName[0] + ". " + assistProvider.lastName,
       });
 
       await matches.updateOne(

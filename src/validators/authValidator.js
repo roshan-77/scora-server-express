@@ -6,6 +6,7 @@ export const registerSchema = Joi.object({
   email: Joi.string().required(),
   password: Joi.string().min(8).required(),
   phone: Joi.string().min(8).max(15).required(),
+  dateOfBirth: Joi.date().less("now").required(),
   sport: Joi.string()
     .trim()
     .valid("cricket", "football")
