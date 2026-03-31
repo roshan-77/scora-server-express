@@ -3,36 +3,17 @@ import { players } from "../config/db.js";
 import sportHandlers from "../services/matches/sportHandlers.js";
 import normalizeMatch from "../utils/normalizeMatch.js";
 import { ObjectId } from "mongodb";
+import matchesService from "../services/matchesService.js";
+import AppError from "../utils/AppError.js";
 
 const matchesController = {
-  getMatches: async (req, res) => {
+  getMatches: async (req, res, next) => {
     try {
-      //This will remove the unwanted fields in the output
-      const allMatches = await matches
-        .find(
-          {},
-          {
-            projection: {
-              normalizeSport: 0,
-              normalizeTeamA: 0,
-              normalizeTeamB: 0,
-              normalizeDatetime: 0,
-              normalizedKey: 0,
-              createdAt: 0,
-              createdBy: 0,
-            },
-          },
-        )
-        .toArray();
+      const result = await matchesService.getMatches();
 
-      if (allMatches.length === 0) {
-        return res.status(404).send("No matches found");
-      }
-
-      res.json(allMatches);
+      res.json(result);
     } catch (error) {
-      console.error(error);
-      res.status(500).send("Server Error");
+      next(error);
     }
   },
 
@@ -60,27 +41,18 @@ const matchesController = {
     res.send(match);
   },
 
-  createMatch: async (req, res) => {
-    const { sport } = req.body;
-    const { userId } = req.user;
-    const normalizedMatch = normalizeMatch(req.body);
-
-    const handler = sportHandlers[sport.toLowerCase()];
-    if (!handler) {
-      return res.status(400).send("Invalid sport");
-    }
-
+  createMatch: async (req, res, next) => {
     try {
-      const match = handler(req.body, userId); //Returns an object to be inserted in the database
-
-      const result = await matches.insertOne({ ...match, ...normalizedMatch }); // Store both normal and normalized values in database. During insetOne, it checks normalizedKey and avoids duplicate entries
+      const result = await matchesService.createMatch(
+        req.body,
+        req.user.userId,
+      );
       res.status(201).json({
         message: "Match created",
-        id: result.insertedId,
+        id: result.insertedId.toString(),
       });
     } catch (error) {
-      if (error.code == 11000) return res.status(409).send("Duplicate match!");
-      res.status(500).send("Server Error");
+      next(error);
     }
   },
 
