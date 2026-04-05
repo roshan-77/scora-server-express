@@ -56,49 +56,10 @@ const matchesController = {
     }
   },
 
-  startFirstHalf: async (req, res) => {
+  startFirstHalf: async (req, res, next) => {
     try {
       const matchId = req.params.id;
-
-      const match = await matches.findOne({ _id: new ObjectId(matchId) });
-      if (!match) {
-        return res.status(404).send("Match not found");
-      }
-
-      //Validate current state of the match
-      if (match.status !== "not_started") {
-        return res.status(400).send("Match already started or match ended.");
-      }
-      const currentTime = new Date();
-      const matchTime = new Date(match.dateTime);
-      if (currentTime < matchTime) {
-        return res.status(400).json({
-          error: "Match cannot be started before the start date and time.",
-          message: `Match start time is ${matchTime}`,
-        });
-      }
-
-      match.periods[0].startTime = currentTime;
-      match.status = "live";
-
-      //Log events
-      match.events.push({
-        type: "MATCH_STARTED",
-        period: match.periods[0].name,
-        timeStamp: new Date(),
-      });
-
-      //Update in database
-      await matches.updateOne(
-        { _id: new ObjectId(matchId) },
-        {
-          $set: {
-            status: match.status,
-            periods: match.periods,
-            events: match.events,
-          },
-        },
-      );
+      const match = await matchesService.startFirstHalf(matchId);
 
       res.status(200).json({
         message: "First half started",
@@ -106,69 +67,24 @@ const matchesController = {
         status: match.status,
         periods: match.periods,
       });
-    } catch (err) {
-      es.status(500).json({ message: err.message });
+    } catch (error) {
+      next(error);
     }
   },
 
-  endFirstHalf: async (req, res) => {
-    const matchId = req.params.id;
-
-    const match = await matches.findOne({ _id: new ObjectId(matchId) });
-
-    if (!match) {
-      return res.status(404).send("Match not found");
-    }
-
-    if (match.status !== "live") {
-      return res
-        .status(400)
-        .send("Match is not currently live to end the first half");
-    }
-
-    if (!match.periods[0].startTime) {
-      return res.status(400).send("First half has not started");
-    }
-
+  endFirstHalf: async (req, res, next) => {
     try {
-      const timeElapsed = Math.floor(
-        (new Date() - match.periods[0].startTime) / 60000,
-      );
+      const matchId = req.params.id;
+      const match = await matchesService.endFirstHalf(matchId);
 
-      match.status = "half_time";
-      match.periods[0].endTime = new Date();
-
-      //Log events
-      match.events.push({
-        type: "HALF_TIME",
-        period: match.periods[0].name,
-        timestamp: new Date(),
+      res.status(200).json({
+        message: "First half ended",
+        matchId: match._id,
+        status: match.status,
+        periods: match.periods,
       });
-
-      if (timeElapsed >= match.halfDuration) {
-        await matches.updateOne(
-          { _id: new ObjectId(matchId) },
-          {
-            $set: {
-              status: match.status,
-              periods: match.periods,
-              events: match.events,
-            },
-          },
-        );
-
-        res.status(200).json({
-          message: "First half ended",
-          matchId: match._id,
-        });
-      } else {
-        res.status(400).json({
-          message: "First half cannot end before the half time",
-          matchId: match._id,
-        });
-      }
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      next(error);
     }
   },
 
