@@ -1,4 +1,5 @@
 import { matches } from "../config/db.js";
+import { ObjectId } from "mongodb";
 
 const matchesRepository = {
   findAll: async () => {
@@ -24,6 +25,23 @@ const matchesRepository = {
 
   insertOne: async (data) => {
     return await matches.insertOne(data);
+  },
+
+  findById: async (id) => {
+    return await matches.findOne({ _id: new ObjectId(id) });
+  },
+
+  updateMatch: async (matchId, matchData) => {
+    return await matches.findOneAndUpdate(
+      { _id: new ObjectId(matchId) },
+      {
+        $set: {
+          status: matchData.status,
+          periods: matchData.periods,
+        },
+      },
+      { returnDocument: "after" },
+    );
   },
 };
 
