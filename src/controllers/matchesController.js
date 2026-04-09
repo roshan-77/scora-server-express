@@ -88,55 +88,20 @@ const matchesController = {
     }
   },
 
-  startSecondHalf: async (req, res) => {
+  startSecondHalf: async (req, res, next) => {
     try {
       const matchId = req.params.id;
 
-      const match = await matches.findOne({ _id: new ObjectId(matchId) });
-
-      if (!match) {
-        return res.status(404).send("Match not found");
-      }
-
-      if (match.status != "half_time") {
-        return res
-          .status(400)
-          .send(
-            "Second half can not be started because the match has not started, it is live or already ended.",
-          );
-      }
-
-      if (match.periods[1].startTime) {
-        return res.status(400).send("Second half already satrted");
-      }
-
-      match.periods[1].startTime = new Date();
-      match.status = "live";
-
-      match.events.push({
-        type: "SECOND_HALF",
-        period: match.periods[1].name,
-        timestamp: new Date(),
-      });
-
-      await matches.updateOne(
-        { _id: new ObjectId(matchId) },
-        {
-          $set: {
-            status: match.status,
-            periods: match.periods,
-            events: match.events,
-          },
-        },
-      );
+      const match = await matchesService.startSecondHalf(matchId);
 
       res.status(200).json({
         message: "Second Half started",
         matchId: match._id,
         status: match.status,
+        periods: match.periods,
       });
     } catch (error) {
-      res.status(500).json({ message: error.message });
+      next(error);
     }
   },
 
